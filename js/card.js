@@ -1,7 +1,8 @@
 // 행운 카드: 찾은 사람만 받는 인증 이미지 (1080×1350, 인스타 피드 비율)
 import { paintLeaf } from './art.js';
+import { TIERS, starText } from './field.js';
 
-export async function makeCard({ rank, total, nick, date, time }) {
+export async function makeCard({ rank, total, nick, date, time, tier = 'normal' }) {
   try { await document.fonts.load('400 120px "Black Han Sans"'); } catch {}
   const W = 1080, H = 1350;
   const c = document.createElement('canvas');
@@ -45,13 +46,16 @@ export async function makeCard({ rank, total, nick, date, time }) {
   x.fillText(`${date} 오늘의 네잎클로버`, W / 2, 130);
   x.font = '400 128px "Black Han Sans", "Pretendard Variable", sans-serif';
   x.fillStyle = '#1f4716';
-  x.fillText(`${total}개 중 ${rank}번째`, W / 2, 1030);
+  x.fillText(`${total}개 중 ${rank}번째`, W / 2, 1000);
   x.font = '800 54px "Pretendard Variable", system-ui, sans-serif';
   x.fillStyle = '#2b5a1f';
-  x.fillText(`${nick} 님이 찾았어요`, W / 2, 1110);
+  x.fillText(`${nick} 님이 찾았어요`, W / 2, 1076);
   x.font = '600 34px "Pretendard Variable", system-ui, sans-serif';
   x.fillStyle = 'rgba(31,71,22,.7)';
-  x.fillText(`${time} · 전 세계 선착순 ${total}개`, W / 2, 1168);
+  x.fillText(`${time} · 전 세계 선착순 ${total}개`, W / 2, 1132);
+  x.font = '800 40px "Pretendard Variable", system-ui, sans-serif';
+  x.fillStyle = '#c98a10';
+  x.fillText(`난이도 ${starText(tier)} ${TIERS[tier].label}`, W / 2, 1194);
 
   // 도장
   x.save();
@@ -64,6 +68,8 @@ export async function makeCard({ rank, total, nick, date, time }) {
   x.fillText('행운', 0, 6);
   x.font = '800 24px "Pretendard Variable", sans-serif';
   x.fillText(`No.${String(rank).padStart(2, '0')}`, 0, 46);
+  x.font = '400 26px sans-serif';
+  x.fillText(starText(tier), 0, -52);
   x.restore();
 
   // 바닥 띠

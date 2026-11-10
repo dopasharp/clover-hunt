@@ -2,7 +2,7 @@
 // CLOVERS_PER_ROUND를 10보다 크게 바꾸면 database.rules.json의 spots/$i 정규식도 같이 바꿔야 해요.
 export const CLOVERS_PER_ROUND = 10;   // 하루에 들판에 숨는 네잎클로버 수 (전 세계 공용)
 export const OPEN_HOUR_KST = 12;       // 매일 이 시각(한국 시간)에 새 들판이 열려요
-export const FIELD = 44;               // 들판 한 변 길이 (클로버 하나 지름이 약 0.7, 폰 한 화면에 약 7칸)
+export const FIELD = 32;               // 들판 한 변 길이 (클로버 하나 지름이 약 0.8, 폰 한 화면에 약 6칸)
 export const HALF = FIELD / 2;
 
 const DAY = 86400000;

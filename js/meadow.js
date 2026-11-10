@@ -527,11 +527,63 @@ export function createMeadow(canvas, { minimap } = {}) {
     s.renderOrder = 10;
     return s;
   }
+  // ---------------------------------------------------------------- 나비 (쉬운 네잎 위를 맴돌아요)
+  const wingTex = new THREE.CanvasTexture((() => {
+    const c = document.createElement('canvas'); c.width = 128; c.height = 128; const x = c.getContext('2d');
+    // 오른쪽 날개 한 장: 몸통(왼쪽 가장자리)에서 바깥으로
+    const g = x.createRadialGradient(10, 64, 6, 10, 64, 120);
+    g.addColorStop(0, '#fff3a0'); g.addColorStop(0.6, '#ffd23f'); g.addColorStop(1, '#f39a1e');
+    x.fillStyle = g;
+    x.beginPath();
+    x.moveTo(4, 60); x.bezierCurveTo(30, 0, 124, 4, 118, 44); x.bezierCurveTo(114, 62, 70, 64, 50, 64);
+    x.bezierCurveTo(80, 70, 104, 96, 88, 116); x.bezierCurveTo(70, 128, 26, 104, 4, 70); x.closePath();
+    x.fill();
+    x.lineWidth = 5; x.strokeStyle = '#3a2a12'; x.stroke();
+    x.fillStyle = '#3a2a12';
+    x.beginPath(); x.arc(96, 30, 7, 0, Math.PI * 2); x.fill();
+    x.fillStyle = '#ffffff';
+    x.beginPath(); x.arc(70, 92, 6, 0, Math.PI * 2); x.fill();
+    return c;
+  })());
+  wingTex.colorSpace = THREE.SRGBColorSpace;
+  const wingMat = new THREE.MeshBasicMaterial({ map: wingTex, alphaTest: 0.4, side: THREE.DoubleSide });
+  const wingGeo = new THREE.PlaneGeometry(0.2, 0.2).translate(0.1, 0, 0).rotateX(-Math.PI / 2);
+  const bodyGeo = new THREE.CapsuleGeometry(0.012, 0.09, 2, 6).rotateX(Math.PI / 2);
+  const bodyMat = new THREE.MeshBasicMaterial({ color: '#3a2a12' });
+  const butterflies = new Map();   // idx → {g, l, wl, wr, seed}
+  function makeButterfly(l) {
+    const g = new THREE.Group();
+    const wr = new THREE.Mesh(wingGeo, wingMat), wl = new THREE.Mesh(wingGeo, wingMat);
+    wl.scale.x = -1;
+    g.add(wr, wl, new THREE.Mesh(bodyGeo, bodyMat));
+    scene.add(g);
+    return { g, l, wl, wr, seed: (l.i * 1.37) % 6.28 };
+  }
+  function animateButterflies(now) {
+    const t = now / 1000;
+    const big = Math.max(1, dist / dist0);   // 멀리서도 보이게 축소하면 조금 커져요
+    for (const b of butterflies.values()) {
+      if (!b.g.visible) continue;
+      const s = b.seed, k = t * 0.7 + s;
+      const x = b.l.x + Math.cos(k) * 0.55 + Math.sin(k * 2.3) * 0.12;
+      const z = b.l.z + Math.sin(k * 1.3) * 0.45;
+      const y = 1.0 + Math.sin(t * 2.1 + s) * 0.12 + Math.sin(t * 5.3 + s) * 0.03;
+      const dx = x - b.g.position.x, dz = z - b.g.position.z;
+      b.g.position.set(x, y, z);
+      if (Math.abs(dx) + Math.abs(dz) > 1e-5) b.g.rotation.y = Math.atan2(-dz, dx) - Math.PI / 2;
+      const flap = Math.sin(t * 17 + s) * 0.9 + 0.2;
+      b.wr.rotation.z = flap; b.wl.rotation.z = -flap;
+      b.g.scale.setScalar(big);
+    }
+  }
+
   /** found: Map idx → {rank, nick} */
   function setFound(found) {
     if (!F) return;
     for (const l of F.lucky) {
       const f = found.get(l.i);
+      const b = butterflies.get(l.i);
+      if (b) b.g.visible = !f;
       if (f) {
         if (!hidden.has(l.id)) { hidden.add(l.id); dirty = true; }
         const label = `🍀 ${f.rank}. ${f.nick}`;
@@ -560,6 +612,8 @@ export function createMeadow(canvas, { minimap } = {}) {
     heroId = -1;
     markers.forEach((m) => scene.remove(m)); markers.clear();
     luckyRings.forEach((m) => scene.remove(m)); luckyRings.length = 0;
+    butterflies.forEach((b) => scene.remove(b.g)); butterflies.clear();
+    for (const l of f.lucky) if (l.tier === 'easy') butterflies.set(l.i, makeButterfly(l));
     pushes.length = 0;
     visitedKey = `clover:seen:${f.round}`;
     visited.fill(0);
@@ -741,6 +795,7 @@ export function createMeadow(canvas, { minimap } = {}) {
       markVisited();
     }
     animateHero(now, dt);
+    animateButterflies(now);
     for (const m of markers.values()) {
       const k = Math.min(1, (now - m.userData.born) / 400);
       const sc = (0.45 + dist / dist0 * 0.35) * easeOutBack(k);

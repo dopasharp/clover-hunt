@@ -1,6 +1,6 @@
 // 네잎클로버 찾기 — 화면 흐름: 시작 화면 → 들판 → 톡 → 들어 올려 확인 → (진짜면) 선착순 등록 → 행운 카드
 import { CLOVERS_PER_ROUND as N, HALF, roundAt, roundEnd, roundLabel, clockKST, countdown } from './config.js';
-import { buildField, NORMAL, DECOY, LUCKY } from './field.js';
+import { buildField, NORMAL, DECOY, LUCKY, TIERS, starText } from './field.js';
 import { createMeadow } from './meadow.js';
 import { connect, explainError } from './net.js';
 import { makeCard, shareCard } from './card.js';
@@ -52,12 +52,12 @@ function onSpots(raw) {
     if (s && s.r === round && typeof s.at === 'number') list.push({ i, ...s });
   }
   list.sort((a, b) => a.at - b.at);
-  const next = new Map(list.map((s, k) => [s.i, { rank: k + 1, nick: s.nick, uid: s.uid, at: s.at }]));
+  const next = new Map(list.map((s, k) => [s.i, { rank: k + 1, nick: s.nick, uid: s.uid, at: s.at, tier: field.lucky[s.i]?.tier || 'normal' }]));
   if (loadedSpots) {
     for (const [i, s] of next) {
       if (found.has(i) || s.uid === net.uid) continue;
       const left = N - next.size;
-      feed(`🍀 <b>${esc(s.nick)}</b>님이 ${s.rank}번째 네잎을 찾았어요! ${left ? `남은 ${left}개` : '오늘 완판!'}`);
+      feed(`🍀 <b>${esc(s.nick)}</b>님이 ${s.rank}번째 네잎을 찾았어요! <small>${starText(s.tier)}</small> ${left ? `남은 ${left}개` : '오늘 완판!'}`);
       sound.ping();
     }
   }
@@ -186,9 +186,10 @@ meadow.on('pick', async (hit) => {
       return;
     }
     if (hit.kind !== LUCKY) { await meadow.drop(); return; }
+    const tier = field.lucky[hit.idx]?.tier || 'normal';
     meadow.glow(true);
     sound.sparkle();
-    verdict('하나, 둘, 셋, 넷!', '진짜 네잎클로버예요 🍀');
+    verdict('하나, 둘, 셋, 넷!', `진짜 네잎클로버예요 🍀 ${starText(tier)} ${TIERS[tier].label}`);
     if (myRound === round) {
       await sleep(900);
       verdict('진짜 네잎이에요!', '오늘은 이미 하나 찾았으니, 다른 사람 몫으로 남겨 둘게요 🌱');
@@ -206,10 +207,10 @@ meadow.on('pick', async (hit) => {
       const rank = me?.rank || found.size || 1;
       sound.win();
       hype(rank);
-      dopa()?.track('game_complete', { rank });
+      dopa()?.track('game_complete', { rank, tier });
       await meadow.vanish();
       await sleep(600);
-      showWin(rank, me?.at || res.at);
+      showWin(rank, me?.at || res.at, tier);
     } else if (res.reason === 'taken') {
       sound.lose();
       verdict('아깝다!', `${res.by.nick}님이 한발 먼저 가져갔어요 😭`, true);
@@ -250,11 +251,11 @@ function hideHint() {
 }
 
 // ---------------------------------------------------------------- 결과
-async function showWin(rank, at) {
+async function showWin(rank, at, tier) {
   const date = roundLabel(round), time = clockKST(at);
-  const canvas = await makeCard({ rank, total: N, nick: nick(), date, time });
-  lastWin = { rank, canvas };
-  $('#win-stat').textContent = `오늘의 네잎 ${N}개 중 ${rank}번째 · ${time}`;
+  const canvas = await makeCard({ rank, total: N, nick: nick(), date, time, tier });
+  lastWin = { rank, canvas, tier };
+  $('#win-stat').textContent = `오늘의 네잎 ${N}개 중 ${rank}번째 · 난이도 ${starText(tier)} ${TIERS[tier].label}`;
   $('#win-img').src = canvas.toDataURL('image/png');
   $('#win').hidden = false;
 }
@@ -270,8 +271,8 @@ $('#win-share').onclick = () => {
     art: '🍀',
     title: '네잎클로버를 찾았어요!',
     stat: `${N}개 중 ${lastWin.rank}번째`,
-    detail: `${roundLabel(round)} 들판에서 전 세계 ${N}개뿐인 네잎을 찾았어요.`,
-    shareText: `🍀 오늘의 네잎클로버 ${N}개 중 ${lastWin.rank}번째로 찾았어요!`,
+    detail: `${roundLabel(round)} 들판에서 전 세계 ${N}개뿐인 네잎을 찾았어요. 난이도 ${starText(lastWin.tier)} ${TIERS[lastWin.tier].label}`,
+    shareText: `🍀 오늘의 네잎클로버 ${N}개 중 ${lastWin.rank}번째로 찾았어요! (난이도 ${starText(lastWin.tier)})`,
   });
 };
 $('#win-close').onclick = () => { $('#win').hidden = true; };
@@ -279,8 +280,12 @@ $('#win-close').onclick = () => { $('#win').hidden = true; };
 function openBoard() {
   const list = [...found.entries()].sort((a, b) => a[1].rank - b[1].rank);
   const left = N - found.size;
-  $('#board-sub').textContent = `${roundLabel(round)} 들판 · ${left ? `아직 ${left}개 남았어요` : '오늘 완판!'}`;
-  const rows = list.map(([, s]) => `<li class="${s.uid === net?.uid ? 'me' : ''}"><span class="rk">${s.rank}</span><span class="nm">${esc(s.nick)}${s.uid === net?.uid ? ' (나)' : ''}</span><span class="tm">${clockKST(s.at)}</span></li>`);
+  const remain = { easy: 0, normal: 0, hard: 0 };
+  for (const l of field.lucky) if (!found.has(l.i)) remain[l.tier]++;
+  $('#board-sub').textContent = left
+    ? `${roundLabel(round)} 들판 · 남은 네잎 ${left}개 (쉬움 ${remain.easy} · 보통 ${remain.normal} · 어려움 ${remain.hard})`
+    : `${roundLabel(round)} 들판 · 오늘 완판!`;
+  const rows = list.map(([, s]) => `<li class="${s.uid === net?.uid ? 'me' : ''}"><span class="rk">${s.rank}</span><span class="nm">${esc(s.nick)}${s.uid === net?.uid ? ' (나)' : ''}</span><span class="st" title="난이도 ${TIERS[s.tier].label}">${starText(s.tier)}</span><span class="tm">${clockKST(s.at)}</span></li>`);
   for (let k = list.length; k < N; k++) rows.push(`<li class="empty"><span class="rk">${k + 1}</span><span class="nm">아직 숨어 있어요…</span></li>`);
   $('#board-list').innerHTML = rows.join('');
   $('#board').hidden = false;

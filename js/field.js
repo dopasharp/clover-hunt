@@ -24,22 +24,39 @@ export const NORMAL = 0;  // 세잎
 export const DECOY = 1;   // 세잎인데 옆 클로버 잎이 틈에 끼어 네잎처럼 보임
 export const LUCKY = 2;   // 진짜 네잎 (idx = 오늘의 몇 번 클로버)
 
-const DECOY_RATE = 0.028;
+const DECOY_RATE = 0.014;
+
+/** 네잎마다 난이도가 달라요. 쉬움은 키가 커서 위로 솟아 있고 나비가 맴돌아요. 어려움은 세잎 밑에 숨어 있어요. */
+export const TIERS = {
+  easy:   { stars: 1, label: '쉬움',   h: [0.66, 0.8] },
+  normal: { stars: 2, label: '보통',   h: [0.4, 0.54] },
+  hard:   { stars: 3, label: '어려움', h: [0.18, 0.3] },
+};
+export const starText = (tier) => '★'.repeat(TIERS[tier].stars) + '☆'.repeat(3 - TIERS[tier].stars);
+/** 하루 개수 중 쉬움 30% · 보통 40% · 어려움 30% */
+function tierList(n, R) {
+  const easy = Math.round(n * 0.3), hard = Math.round(n * 0.3);
+  const list = Array.from({ length: n }, (_, k) => (k < easy ? 'easy' : k < n - hard ? 'normal' : 'hard'));
+  for (let k = n - 1; k > 0; k--) { const j = Math.floor(R() * (k + 1)); [list[k], list[j]] = [list[j], list[k]]; }
+  return list;
+}
 const FLOWER_RATE = 0.05;
 
 /**
  * @returns {{round:number, n:number, x:Float32Array, z:Float32Array, h:Float32Array, rot:Float32Array,
  *   size:Float32Array, tint:Uint8Array, kind:Uint8Array, idx:Int8Array, cellStart:Int32Array,
- *   lucky:{x:number,z:number,i:number,id:number}[], flowers:{x:number,z:number,h:number,c:number}[]}}
+ *   lucky:{x:number,z:number,i:number,id:number,tier:'easy'|'normal'|'hard'}[], flowers:{x:number,z:number,h:number,c:number}[]}}
  */
 export function buildField(round) {
   const R = rng(hash(round, 4242));
-  // 1) 네잎 자리: 가장자리에서 4칸 안쪽, 서로 7 이상 떨어지게
+  // 1) 네잎 자리: 가장자리에서 3칸 안쪽, 서로 5 이상 떨어지게
   const spots = [];
-  for (let tries = 0; spots.length < CLOVERS_PER_ROUND && tries < 5000; tries++) {
-    const x = (R() * 2 - 1) * (HALF - 4), z = (R() * 2 - 1) * (HALF - 4);
-    if (spots.every((s) => Math.hypot(s.x - x, s.z - z) >= 7)) spots.push({ x, z, i: spots.length });
+  for (let tries = 0; spots.length < CLOVERS_PER_ROUND && tries < 8000; tries++) {
+    const x = (R() * 2 - 1) * (HALF - 3), z = (R() * 2 - 1) * (HALF - 3);
+    if (spots.every((s) => Math.hypot(s.x - x, s.z - z) >= 5)) spots.push({ x, z, i: spots.length });
   }
+  const tiers = tierList(spots.length, R);
+  spots.forEach((s, k) => { s.tier = tiers[k]; });
   const byCell = new Map();
   for (const s of spots) {
     const c = Math.floor(s.z + HALF) * FIELD + Math.floor(s.x + HALF);
@@ -76,17 +93,29 @@ export function buildField(round) {
       const here = byCell.get(c);
       if (here) for (const s of here) {
         x[n] = s.x; z[n] = s.z;
-        h[n] = 0.2 + R() * 0.2;           // 조금 낮게 → 큰 세잎 밑에 숨어 있는 경우가 많아요
+        const [h0, h1] = TIERS[s.tier].h;
+        h[n] = h0 + R() * (h1 - h0);
         rot[n] = R() * Math.PI * 2;
         size[n] = 0.9 + R() * 0.25;
         tint[n] = (R() * 6) | 0;
         kind[n] = LUCKY; idx[n] = s.i;
-        lucky.push({ x: s.x, z: s.z, i: s.i, id: n });
+        lucky.push({ x: s.x, z: s.z, i: s.i, id: n, tier: s.tier });
         n++;
       }
     }
   }
   cellStart[FIELD * FIELD] = n;
+  // 쉬운 네잎 둘레의 세잎은 키를 낮춰서 위에서 잘 보이게
+  for (const l of lucky) {
+    if (l.tier !== 'easy') continue;
+    const cx = Math.floor(l.x + HALF), cz = Math.floor(l.z + HALF);
+    for (let iz = Math.max(0, cz - 1); iz <= Math.min(FIELD - 1, cz + 1); iz++) for (let ix = Math.max(0, cx - 1); ix <= Math.min(FIELD - 1, cx + 1); ix++) {
+      const c = iz * FIELD + ix;
+      for (let id = cellStart[c]; id < cellStart[c + 1]; id++) {
+        if (id !== l.id && Math.hypot(x[id] - l.x, z[id] - l.z) < 0.8) h[id] = Math.min(h[id], 0.46);
+      }
+    }
+  }
   return { round, n, x, z, h, rot, size, tint, kind, idx, cellStart, lucky: lucky.sort((a, b) => a.i - b.i), flowers };
 }
 
