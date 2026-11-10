@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>네잎클로버 찾기 🍀 · 도파#</title>
+  <meta name="description" content="오늘 들판에 숨은 네잎클로버는 전 세계에 딱 10개. 손으로 헤쳐서 먼저 찾는 사람이 임자예요.">
+  <meta name="theme-color" content="#cfe3a8">
+  <meta name="dopasharp:game" content="clover-hunt">
+  <link rel="canonical" href="https://dopasharp.github.io/clover-hunt/">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="도파# dopa.shap">
+  <meta property="og:title" content="네잎클로버 찾기 🍀">
+  <meta property="og:description" content="전 세계에 딱 10개. 먼저 찾는 사람이 임자!">
+  <meta property="og:url" content="https://dopasharp.github.io/clover-hunt/">
+  <meta name="twitter:card" content="summary_large_image">
+  <link rel="icon" href="dopasharp/favicon.svg" type="image/svg+xml">
+  <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Black+Han+Sans&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="dopasharp/tokens.css">
+  <link rel="stylesheet" href="dopasharp/components.css">
+  <link rel="stylesheet" href="css/style.css?v=1">
+  <script src="dopasharp/dopasharp.js" defer></script>
+  <script type="module" src="js/main.js?v=1"></script>
+</head>
+<body>
+  <canvas id="scene" aria-label="네잎클로버 들판 3D 화면"></canvas>
+
+  <header data-dopa="header" class="top"></header>
+
+  <div class="hud" aria-live="polite">
+    <button id="left-pill" class="pill pill-main" type="button" aria-label="오늘 찾은 사람 보기">🍀 <b id="left">–</b><span id="left-of">/ 10 남음</span></button>
+    <span class="pill" id="online">👀 –</span>
+    <span class="pill" id="timer">⏱ –</span>
+  </div>
+
+  <div id="feed" class="feed" aria-live="polite"></div>
+
+  <div class="map-wrap">
+    <canvas id="minimap" class="minimap" width="176" height="176" aria-label="들판 지도: 눌러서 이동"></canvas>
+    <span id="explored" class="map-label">탐험 0%</span>
+  </div>
+  <div class="tools">
+    <button id="mode-btn" class="chip" type="button" aria-pressed="false">✋ 헤치기</button>
+    <button id="sound-btn" class="chip" type="button">🔊</button>
+  </div>
+  <p id="hint" class="hint">👆 한 손가락으로 쓸면 클로버가 눕고, 두 손가락으로 이동·확대<br>네잎 같으면 <b>톡!</b></p>
+
+  <div id="floats" class="floats" aria-hidden="true"></div>
+  <div id="verdict" class="verdict" role="status" hidden><b></b><span></span></div>
+
+  <section id="intro" class="overlay intro" aria-labelledby="intro-title">
+    <div class="intro-card">
+      <div class="intro-art" aria-hidden="true">🍀</div>
+      <h1 id="intro-title">네잎클로버 찾기</h1>
+      <p class="intro-date" id="intro-date">오늘의 들판</p>
+      <div class="intro-count"><b id="intro-left">–</b><span id="intro-total">/ 10</span></div>
+      <p class="intro-sub" id="intro-sub">전 세계에 딱 10개. 먼저 집는 사람이 임자예요.</p>
+      <ul class="rules">
+        <li><span>👆</span>손가락으로 쓸면 클로버가 옆으로 누워요. 키 큰 세잎 밑에 숨어 있을지도!</li>
+        <li><span>🍀</span>네잎 같으면 톡! 들어 올려서 잎을 세어 봐요. 가짜도 섞여 있어요.</li>
+        <li><span>🏃</span>선착순 · 한 사람당 하루 1개 · 매일 낮 12시에 새 들판</li>
+      </ul>
+      <label class="nick">닉네임<input id="nick" maxlength="10" autocomplete="nickname" placeholder="익명의 행운아"></label>
+      <button id="start" class="dopa-button dopa-button--block" type="button" disabled>불러오는 중…</button>
+      <button id="board-btn" class="dopa-button dopa-button--tertiary" type="button" hidden>🏆 오늘 찾은 사람 보기</button>
+      <p id="intro-note" class="intro-note" hidden></p>
+    </div>
+  </section>
+
+  <section id="win" class="overlay win" hidden aria-labelledby="win-title">
+    <div class="win-card">
+      <h2 id="win-title">네잎클로버를 찾았어요!</h2>
+      <p id="win-stat" class="win-stat"></p>
+      <img id="win-img" class="win-img" alt="행운 카드">
+      <div class="win-actions">
+        <button id="win-save" class="dopa-button dopa-button--block" type="button">📸 행운 카드 저장·공유</button>
+        <button id="win-share" class="dopa-button dopa-button--secondary" type="button">🔗 결과 공유</button>
+        <button id="win-close" class="dopa-button dopa-button--secondary" type="button">들판 구경하기</button>
+      </div>
+    </div>
+  </section>
+
+  <section id="board" class="overlay board" hidden aria-labelledby="board-title">
+    <div class="board-card">
+      <div class="board-head"><h2 id="board-title">🏆 오늘의 행운아</h2><button id="board-close" class="dopa-close" type="button" aria-label="닫기">✕</button></div>
+      <p id="board-sub" class="board-sub"></p>
+      <ol id="board-list" class="board-list"></ol>
+    </div>
+  </section>
+
+  <p id="mode-note" class="mode-note" hidden></p>
+</body>
+</html>

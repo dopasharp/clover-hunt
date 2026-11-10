@@ -1,0 +1,49 @@
+{
+  "rules": {
+    ".read": false,
+    ".write": false,
+    "clover": {
+      "spots": {
+        ".read": true,
+        "$i": {
+          ".write": "auth != null && newData.exists() && (!data.exists() || data.child('r').val() < newData.child('r').val())",
+          ".validate": "$i.matches(/^[0-9]$/) && newData.hasChildren(['r','uid','nick','at'])",
+          "r": {
+            ".validate": "newData.isNumber() && newData.val() * 86400000 + 10800000 <= now && newData.val() * 86400000 + 97200000 > now && newData.parent().parent().parent().child('users/' + auth.uid + '/r').val() === newData.val()"
+          },
+          "uid": {
+            ".validate": "newData.val() === auth.uid"
+          },
+          "nick": {
+            ".validate": "newData.isString() && newData.val().length >= 1 && newData.val().length <= 10"
+          },
+          "at": {
+            ".validate": "newData.val() === now"
+          },
+          "$other": {
+            ".validate": false
+          }
+        }
+      },
+      "users": {
+        "$uid": {
+          ".read": "auth != null && auth.uid === $uid",
+          "r": {
+            ".write": "auth != null && auth.uid === $uid",
+            ".validate": "newData.isNumber() && (!data.exists() || data.val() < newData.val()) && newData.val() * 86400000 + 10800000 <= now && newData.val() * 86400000 + 97200000 > now"
+          },
+          "$other": {
+            ".validate": false
+          }
+        }
+      },
+      "presence": {
+        ".read": true,
+        "$uid": {
+          ".write": "auth != null && auth.uid === $uid",
+          ".validate": "!newData.exists() || newData.isNumber()"
+        }
+      }
+    }
+  }
+}
