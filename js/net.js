@@ -1,4 +1,4 @@
-// 서버 연동: 누가 오늘 몇 번 네잎을 찾았는지(선착순)와 지금 접속자 수만 주고받아요.
+// 서버 연동: 누가 오늘 몇 번 네잎을 찾았는지(선착순), 사람마다 지금까지 찾은 개수(역대 랭킹), 지금 접속자 수를 주고받아요.
 // - firebase: Realtime Database + 익명 로그인
 // - local:    localStorage + BroadcastChannel (같은 브라우저의 탭끼리, Firebase 설정 전 테스트용)
 import { firebaseConfig } from './firebase-config.js';
@@ -13,7 +13,8 @@ export const mode = params.has('local') || !configured ? 'local' : 'firebase';
 
 /**
  * @typedef {{r:number, uid:string, nick:string, at:number}} Spot
- * @typedef {{ok:true, at:number} | {ok:false, reason:'taken', by:Spot} | {ok:false, reason:'already'} | {ok:false, reason:'closed'}} ClaimResult
+ * @typedef {{uid:string, nick:string, n:number, at:number}} Stat
+ * @typedef {{ok:true, at:number} | {ok:false, reason:'taken', by:Spot} | {ok:false, reason:'closed'}} ClaimResult
  */
 
 export async function connect() {
@@ -59,9 +60,16 @@ async function firebaseApi() {
     /** cb({ [i]: Spot }) — 들판 전체 상태 (최대 10줄이라 통째로 받아요) */
     watchSpots(cb) { d.onValue(ref('spots'), (s) => cb(s.val() || {})); },
     watchOnline(cb) { d.onValue(ref('presence'), (s) => cb(s.size || 0)); },
-    async myRound() {
+    /** 역대 랭킹: 많이 찾은 순 (같으면 먼저 그 개수에 도달한 사람이 위) */
+    async topStats(limit = 50) {
+      const s = await d.get(d.query(ref('stats'), d.orderByChild('n'), d.limitToLast(limit)));
+      const list = [];
+      s.forEach((c) => { list.push({ uid: c.key, ...c.val() }); });
+      return sortStats(list);
+    },
+    async myStat() {
       if (!uid) return null;
-      try { return (await d.get(ref(`users/${uid}/r`))).val(); } catch { return null; }
+      try { const v = (await d.get(ref(`stats/${uid}`))).val(); return v && { uid, ...v }; } catch { return null; }
     },
     /** @returns {Promise<ClaimResult>} */
     async claim(i, nick) {
@@ -70,17 +78,18 @@ async function firebaseApi() {
       try {
         await d.update(ref(), {
           [`spots/${i}`]: { r, uid, nick, at: d.serverTimestamp() },
-          [`users/${uid}/r`]: r,
+          [`stats/${uid}/n`]: d.increment(1),
+          [`stats/${uid}/nick`]: nick,
+          [`stats/${uid}/at`]: d.serverTimestamp(),
+          [`stats/${uid}/i`]: String(i),
         });
         const s = (await d.get(ref(`spots/${i}`))).val();
         return { ok: true, at: s?.at || Date.now() + offset };
       } catch (e) {
         if (!/permission[_ -]denied/i.test(String(e?.code || e?.message))) throw e;
-        // 규칙이 막은 이유 찾기: 누가 먼저 가져갔나 / 내가 오늘 이미 찾았나 / 라운드가 바뀌었나
-        const [spot, mine] = await Promise.all([d.get(ref(`spots/${i}`)), d.get(ref(`users/${uid}/r`))]);
-        const sv = spot.val();
-        if (sv && sv.r === r && sv.uid !== uid) return { ok: false, reason: 'taken', by: sv };
-        if (mine.val() === r) return { ok: false, reason: 'already' };
+        // 규칙이 막은 이유 찾기: 누가 먼저 가져갔나 / 라운드가 바뀌었나
+        const sv = (await d.get(ref(`spots/${i}`))).val();
+        if (sv && sv.r === r) return { ok: false, reason: 'taken', by: sv };
         if (roundAt(Date.now() + offset) !== r) return { ok: false, reason: 'closed' };
         throw e;
       }
@@ -100,7 +109,8 @@ function localApi() {
   const ch = new BroadcastChannel('clover');
   const subs = { spots: [], online: [] };
   const peers = new Map();
-  const db = () => { const x = load(); x.spots ||= {}; x.users ||= {}; return x; };
+  const db = () => { const x = load(); x.spots ||= {}; x.stats ||= {}; return x; };
+  const statList = () => sortStats(Object.entries(db().stats).map(([u, v]) => ({ uid: u, ...v })));
   const emitSpots = () => subs.spots.forEach((f) => f(db().spots));
   const emitOnline = () => {
     const t = Date.now();
@@ -122,17 +132,17 @@ function localApi() {
     now: () => Date.now(),
     watchSpots(cb) { subs.spots.push(cb); cb(db().spots); },
     watchOnline(cb) { subs.online.push(cb); emitOnline(); },
-    async myRound() { return db().users[uid] ?? null; },
+    async topStats(limit = 50) { return statList().slice(0, limit); },
+    async myStat() { const v = db().stats[uid]; return v ? { uid, ...v } : null; },
     async claim(i, nick) {
       await new Promise((r) => setTimeout(r, 250)); // 서버 왕복 느낌
       const x = db();
       const r = roundAt(Date.now());
       const s = x.spots[i];
-      if (s && s.r >= r && s.uid !== uid) return { ok: false, reason: 'taken', by: s };
-      if (x.users[uid] >= r) return { ok: false, reason: 'already' };
+      if (s && s.r >= r) return { ok: false, reason: 'taken', by: s };
       const at = Date.now();
       x.spots[i] = { r, uid, nick, at };
-      x.users[uid] = r;
+      x.stats[uid] = { n: (x.stats[uid]?.n || 0) + 1, nick, at, i: String(i) };
       save(x);
       ch.postMessage({ type: 'spots' });
       emitSpots();
@@ -141,9 +151,17 @@ function localApi() {
     sleep() {}, wake() {},
     /** 테스트용: 다른 사람이 i번을 찾은 것처럼 */
     _fake(i, nick = '테스트') {
-      const x = db(); x.spots[i] = { r: roundAt(Date.now()), uid: 'fake' + i, nick, at: Date.now() }; save(x);
+      const x = db(), u = 'fake-' + nick, at = Date.now();
+      x.spots[i] = { r: roundAt(at), uid: u, nick, at };
+      x.stats[u] = { n: (x.stats[u]?.n || 0) + 1, nick, at, i: String(i) };
+      save(x);
       ch.postMessage({ type: 'spots' }); emitSpots();
     },
     _reset() { save({}); sessionStorage.removeItem('clover:uid'); ch.postMessage({ type: 'spots' }); emitSpots(); },
   };
+}
+
+/** 많이 찾은 순, 같으면 그 개수에 먼저 도달한 사람이 위 */
+function sortStats(list) {
+  return list.filter((s) => typeof s.n === 'number' && s.n > 0).sort((a, b) => b.n - a.n || a.at - b.at);
 }

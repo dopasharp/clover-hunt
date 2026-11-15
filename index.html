@@ -22,9 +22,9 @@
   <link href="https://fonts.googleapis.com/css2?family=Black+Han+Sans&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="dopasharp/tokens.css">
   <link rel="stylesheet" href="dopasharp/components.css">
-  <link rel="stylesheet" href="css/style.css?v=2">
+  <link rel="stylesheet" href="css/style.css?v=3">
   <script src="dopasharp/dopasharp.js" defer></script>
-  <script type="module" src="js/main.js?v=2"></script>
+  <script type="module" src="js/main.js?v=3"></script>
 </head>
 <body>
   <canvas id="scene" aria-label="네잎클로버 들판 3D 화면"></canvas>
@@ -32,7 +32,7 @@
   <header data-dopa="header" class="top"></header>
 
   <div class="hud" aria-live="polite">
-    <button id="left-pill" class="pill pill-main" type="button" aria-label="오늘 찾은 사람 보기">🍀 <b id="left">–</b><span id="left-of">/ 10 남음</span></button>
+    <button id="left-pill" class="pill pill-main" type="button" aria-label="오늘 찾은 사람과 랭킹 보기">🍀 <b id="left">–</b><span id="left-of">/ 10 남음</span></button>
     <span class="pill" id="online">👀 –</span>
     <span class="pill" id="timer">⏱ –</span>
   </div>
@@ -63,11 +63,12 @@
         <li><span>👆</span>손가락으로 쓸면 클로버가 옆으로 누워요. 키 큰 세잎 밑에 숨어 있을지도!</li>
         <li><span>🍀</span>네잎 같으면 톡! 들어 올려서 잎을 세어 봐요. 가짜도 섞여 있어요.</li>
         <li><span>🦋</span>나비가 맴도는 곳엔 쉬운 네잎이 있어요. 숨어 있는 어려운 네잎은 별 ★★★</li>
-        <li><span>🏃</span>선착순 · 한 사람당 하루 1개 · 매일 낮 12시에 새 들판</li>
+        <li><span>🏃</span>선착순 · 찾는 만큼 내 것 · 매일 낮 12시에 새 들판</li>
+        <li><span>🎴</span>네잎마다 생김새가 달라요. 찾으면 세상에 하나뿐인 행운 카드를!</li>
       </ul>
       <label class="nick">닉네임<input id="nick" maxlength="10" autocomplete="nickname" placeholder="익명의 행운아"></label>
       <button id="start" class="dopa-button dopa-button--block" type="button" disabled>불러오는 중…</button>
-      <button id="board-btn" class="dopa-button dopa-button--tertiary" type="button" hidden>🏆 오늘 찾은 사람 보기</button>
+      <button id="board-btn" class="dopa-button dopa-button--tertiary" type="button">👑 역대 랭킹 보기</button>
       <p id="intro-note" class="intro-note" hidden></p>
     </div>
   </section>
@@ -80,7 +81,7 @@
       <div class="win-actions">
         <button id="win-save" class="dopa-button dopa-button--block" type="button">📸 행운 카드 저장·공유</button>
         <button id="win-share" class="dopa-button dopa-button--secondary" type="button">🔗 결과 공유</button>
-        <button id="win-close" class="dopa-button dopa-button--secondary" type="button">들판 구경하기</button>
+        <button id="win-close" class="dopa-button dopa-button--secondary" type="button">🍀 계속 찾기</button>
       </div>
     </div>
   </section>
@@ -88,6 +89,10 @@
   <section id="board" class="overlay board" hidden aria-labelledby="board-title">
     <div class="board-card">
       <div class="board-head"><h2 id="board-title">🏆 오늘의 행운아</h2><button id="board-close" class="dopa-close" type="button" aria-label="닫기">✕</button></div>
+      <div class="board-tabs" role="tablist">
+        <button class="board-tab" type="button" role="tab" data-tab="today" aria-selected="true">오늘</button>
+        <button class="board-tab" type="button" role="tab" data-tab="all" aria-selected="false">역대 랭킹</button>
+      </div>
       <p id="board-sub" class="board-sub"></p>
       <ol id="board-list" class="board-list"></ol>
     </div>

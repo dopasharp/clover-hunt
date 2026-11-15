@@ -9,7 +9,7 @@
           ".write": "auth != null && newData.exists() && (!data.exists() || data.child('r').val() < newData.child('r').val())",
           ".validate": "$i.matches(/^[0-9]$/) && newData.hasChildren(['r','uid','nick','at'])",
           "r": {
-            ".validate": "newData.isNumber() && newData.val() * 86400000 + 10800000 <= now && newData.val() * 86400000 + 97200000 > now && newData.parent().parent().parent().child('users/' + auth.uid + '/r').val() === newData.val()"
+            ".validate": "newData.isNumber() && newData.val() * 86400000 + 10800000 <= now && newData.val() * 86400000 + 97200000 > now"
           },
           "uid": {
             ".validate": "newData.val() === auth.uid"
@@ -19,6 +19,29 @@
           },
           "at": {
             ".validate": "newData.val() === now"
+          },
+          "$other": {
+            ".validate": false
+          }
+        }
+      },
+      "stats": {
+        ".read": true,
+        ".indexOn": ["n"],
+        "$uid": {
+          ".write": "auth != null && auth.uid === $uid",
+          ".validate": "newData.hasChildren(['n','nick','at','i'])",
+          "n": {
+            ".validate": "newData.isNumber() && ((!data.exists() && newData.val() === 1) || (data.exists() && newData.val() === data.val() + 1))"
+          },
+          "nick": {
+            ".validate": "newData.isString() && newData.val().length >= 1 && newData.val().length <= 10"
+          },
+          "at": {
+            ".validate": "newData.val() === now"
+          },
+          "i": {
+            ".validate": "newData.isString() && newData.val().matches(/^[0-9]$/) && newData.parent().parent().parent().child('spots/' + newData.val() + '/uid').val() === auth.uid && newData.parent().parent().parent().child('spots/' + newData.val() + '/at').val() === now"
           },
           "$other": {
             ".validate": false

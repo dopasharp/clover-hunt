@@ -1,17 +1,23 @@
 // 2D 그림 재료: 클로버 잎(3D 잎 텍스처와 행운 카드 공용), 흙바닥 텍스처.
 
-/** 하트 모양 잎 하나. (x,y)가 잎자루가 붙는 뾰족한 쪽, ang 방향(0 = 위쪽)으로 len만큼 뻗어요. */
+/**
+ * 하트 모양 잎 하나. (x,y)가 잎자루가 붙는 뾰족한 쪽, ang 방향(0 = 위쪽)으로 len만큼 뻗어요.
+ * o: base/mid/edge(색), chevron(V자 무늬 색), vchev(V자 높이 0~1), w(잎 너비 배율), notch(끝 파임 0~1), round(통통함 0~1), shine
+ */
 export function paintLeaf(ctx, x, y, len, ang = 0, o = {}) {
   const L = len;
   ctx.save();
   ctx.translate(x, y);
   ctx.rotate(ang);
+  if (o.w) ctx.scale(o.w, 1);
+  const n = 0.84 + 0.14 * ((o.notch ?? 0.5) - 0.5) * 2 * -1;   // 파임 깊이: 0.84 기본, 0이면 얕게 / 1이면 깊게
+  const rd = 0.6 + 0.16 * ((o.round ?? 0.5) - 0.5) * 2;        // 어깨 폭: 0.6 기본
   const path = new Path2D();
   path.moveTo(0, 0);
-  path.bezierCurveTo(-0.18 * L, -0.08 * L, -0.6 * L, -0.4 * L, -0.5 * L, -0.76 * L);
-  path.bezierCurveTo(-0.42 * L, -1.04 * L, -0.08 * L, -1.06 * L, 0, -0.84 * L);
+  path.bezierCurveTo(-0.18 * L, -0.08 * L, -rd * L, -0.4 * L, -0.5 * L, -0.76 * L);
+  path.bezierCurveTo(-0.42 * L, -1.04 * L, -0.08 * L, -1.06 * L, 0, -n * L);
   path.bezierCurveTo(0.08 * L, -1.06 * L, 0.42 * L, -1.04 * L, 0.5 * L, -0.76 * L);
-  path.bezierCurveTo(0.6 * L, -0.4 * L, 0.18 * L, -0.08 * L, 0, 0);
+  path.bezierCurveTo(rd * L, -0.4 * L, 0.18 * L, -0.08 * L, 0, 0);
   path.closePath();
 
   const g = ctx.createRadialGradient(0, -0.1 * L, 0.05 * L, 0, -0.55 * L, 0.75 * L);
@@ -25,13 +31,19 @@ export function paintLeaf(ctx, x, y, len, ang = 0, o = {}) {
   ctx.clip(path);
   // 클로버 특유의 연한 V자 무늬
   ctx.strokeStyle = o.chevron || 'rgba(214,240,190,.36)';
-  ctx.lineWidth = 0.08 * L;
   ctx.lineCap = 'round';
+  const v = ((o.vchev ?? 0.5) - 0.5) * 0.3 * L;   // V자 무늬 높낮이
+  ctx.lineWidth = (o.chevW || 0.08) * L;
   ctx.beginPath();
-  ctx.moveTo(-0.34 * L, -0.66 * L);
-  ctx.quadraticCurveTo(-0.12 * L, -0.5 * L, 0, -0.36 * L);
-  ctx.quadraticCurveTo(0.12 * L, -0.5 * L, 0.34 * L, -0.66 * L);
+  ctx.moveTo(-0.34 * L, -0.66 * L - v);
+  ctx.quadraticCurveTo(-0.12 * L, -0.5 * L - v, 0, -0.36 * L - v);
+  ctx.quadraticCurveTo(0.12 * L, -0.5 * L - v, 0.34 * L, -0.66 * L - v);
   ctx.stroke();
+  // 잎 가운데 반점 (품종마다)
+  if (o.blotch) {
+    ctx.fillStyle = o.blotch;
+    ctx.beginPath(); ctx.ellipse(0, -0.42 * L, 0.16 * L, 0.2 * L, 0, 0, Math.PI * 2); ctx.fill();
+  }
   // 잎맥
   ctx.strokeStyle = 'rgba(190,230,160,.45)';
   ctx.lineWidth = 0.022 * L;

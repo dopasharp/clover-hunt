@@ -18,7 +18,8 @@ let round = roundAt(Date.now());
 let field = null;
 let found = new Map();       // idx → {rank, nick, uid, at}
 let loadedSpots = false;
-let myRound = null;          // 내가 마지막으로 네잎을 찾은 라운드
+let myStat = null;           // 내 역대 기록 {n, nick, at}
+let boardTab = 'today';
 let started = false, busy = false;
 let lastWin = null;
 
@@ -64,7 +65,6 @@ function onSpots(raw) {
   loadedSpots = true;
   found = next;
   meadow.setFound(found);
-  if (found.size && [...found.values()].some((s) => s.uid === net.uid)) myRound = round;
   render();
 }
 
@@ -78,13 +78,9 @@ function render() {
   if (!net) return;
   const start = $('#start');
   start.disabled = false;
-  $('#board-btn').hidden = found.size === 0;
   if (left === 0) {
     $('#intro-sub').innerHTML = `오늘의 네잎 ${N}개를 모두 찾았어요!<br>다음 들판은 <b id="intro-cd"></b> 뒤에 열려요.`;
     start.textContent = '그래도 들판 구경하기';
-  } else if (myRound === round) {
-    $('#intro-sub').textContent = '오늘은 이미 하나 찾았어요. 들판 구경은 언제든 OK!';
-    start.textContent = '들판 구경하기';
   } else {
     $('#intro-sub').textContent = `전 세계에 딱 ${N}개. 먼저 집는 사람이 임자예요.`;
     start.textContent = '들판으로 들어가기';
@@ -190,16 +186,9 @@ meadow.on('pick', async (hit) => {
     meadow.glow(true);
     sound.sparkle();
     verdict('하나, 둘, 셋, 넷!', `진짜 네잎클로버예요 🍀 ${starText(tier)} ${TIERS[tier].label}`);
-    if (myRound === round) {
-      await sleep(900);
-      verdict('진짜 네잎이에요!', '오늘은 이미 하나 찾았으니, 다른 사람 몫으로 남겨 둘게요 🌱');
-      await sleep(2300);
-      hideVerdict(); meadow.glow(false); await meadow.drop();
-      return;
-    }
     const [res] = await Promise.all([net.claim(hit.idx, nick()), sleep(700)]);
     if (res.ok) {
-      myRound = round;
+      myStat = { n: (myStat?.n || 0) + 1, nick: nick(), at: res.at };
       hideVerdict();
       // 내 기록이 목록에 들어오면 순번 확정 (보통 바로 들어와요)
       for (let t = 0; t < 30 && !(found.get(hit.idx)?.uid === net.uid); t++) await sleep(100);
@@ -210,17 +199,12 @@ meadow.on('pick', async (hit) => {
       dopa()?.track('game_complete', { rank, tier });
       await meadow.vanish();
       await sleep(600);
-      showWin(rank, me?.at || res.at, tier);
+      showWin(rank, me?.at || res.at, tier, hit.idx);
     } else if (res.reason === 'taken') {
       sound.lose();
-      verdict('아깝다!', `${res.by.nick}님이 한발 먼저 가져갔어요 😭`, true);
+      verdict('아깝다!', res.by.uid === net.uid ? '이미 내가 찾은 네잎이에요 🍀' : `${res.by.nick}님이 한발 먼저 가져갔어요 😭`, true);
       await sleep(2200);
       hideVerdict(); await meadow.vanish();
-    } else if (res.reason === 'already') {
-      myRound = round;
-      verdict('진짜 네잎이에요!', '오늘은 이미 하나 찾았어요 🌱');
-      await sleep(2200);
-      hideVerdict(); meadow.glow(false); await meadow.drop();
     } else {
       verdict('들판이 바뀌었어요', '새 들판에서 다시 찾아봐요!', true);
       await sleep(2000);
@@ -251,11 +235,13 @@ function hideHint() {
 }
 
 // ---------------------------------------------------------------- 결과
-async function showWin(rank, at, tier) {
+async function showWin(rank, at, tier, idx) {
   const date = roundLabel(round), time = clockKST(at);
-  const canvas = await makeCard({ rank, total: N, nick: nick(), date, time, tier });
+  const canvas = await makeCard({ rank, total: N, nick: nick(), date, time, tier, round, idx });
   lastWin = { rank, canvas, tier };
-  $('#win-stat').textContent = `오늘의 네잎 ${N}개 중 ${rank}번째 · 난이도 ${starText(tier)} ${TIERS[tier].label}`;
+  const mine = [...found.values()].filter((s) => s.uid === net.uid).length;
+  $('#win-stat').textContent = `오늘의 네잎 ${N}개 중 ${rank}번째 · 난이도 ${starText(tier)} ${TIERS[tier].label}`
+    + (myStat ? ` · 오늘 ${Math.max(mine, 1)}개 · 역대 ${myStat.n}개` : '');
   $('#win-img').src = canvas.toDataURL('image/png');
   $('#win').hidden = false;
 }
@@ -277,7 +263,14 @@ $('#win-share').onclick = () => {
 };
 $('#win-close').onclick = () => { $('#win').hidden = true; };
 
-function openBoard() {
+function openBoard(tab = boardTab) {
+  boardTab = tab;
+  for (const b of document.querySelectorAll('.board-tab')) b.setAttribute('aria-selected', String(b.dataset.tab === tab));
+  $('#board-title').textContent = tab === 'today' ? '🏆 오늘의 행운아' : '👑 역대 랭킹';
+  $('#board').hidden = false;
+  if (tab === 'all') renderAllTime(); else renderToday();
+}
+function renderToday() {
   const list = [...found.entries()].sort((a, b) => a[1].rank - b[1].rank);
   const left = N - found.size;
   const remain = { easy: 0, normal: 0, hard: 0 };
@@ -288,10 +281,31 @@ function openBoard() {
   const rows = list.map(([, s]) => `<li class="${s.uid === net?.uid ? 'me' : ''}"><span class="rk">${s.rank}</span><span class="nm">${esc(s.nick)}${s.uid === net?.uid ? ' (나)' : ''}</span><span class="st" title="난이도 ${TIERS[s.tier].label}">${starText(s.tier)}</span><span class="tm">${clockKST(s.at)}</span></li>`);
   for (let k = list.length; k < N; k++) rows.push(`<li class="empty"><span class="rk">${k + 1}</span><span class="nm">아직 숨어 있어요…</span></li>`);
   $('#board-list').innerHTML = rows.join('');
-  $('#board').hidden = false;
 }
-$('#left-pill').onclick = openBoard;
-$('#board-btn').onclick = openBoard;
+let allTimeSeq = 0;
+async function renderAllTime() {
+  const seq = ++allTimeSeq;
+  $('#board-sub').textContent = '지금까지 찾은 네잎 개수 · 같으면 먼저 찾은 사람이 위';
+  $('#board-list').innerHTML = '<li class="empty"><span class="nm">불러오는 중…</span></li>';
+  let list = [], me = null;
+  try { [list, me] = await Promise.all([net.topStats(50), net.myStat()]); }
+  catch (e) {
+    console.error(e);
+    if (seq === allTimeSeq) $('#board-list').innerHTML = `<li class="empty"><span class="nm">${esc(explainError(e))}</span></li>`;
+    return;
+  }
+  if (seq !== allTimeSeq || boardTab !== 'all') return;
+  if (me) myStat = me;
+  const medal = ['🥇', '🥈', '🥉'];
+  const row = (s, k) => `<li class="${s.uid === net.uid ? 'me' : ''}"><span class="rk">${k < 3 ? medal[k] : k + 1}</span><span class="nm">${esc(s.nick)}${s.uid === net.uid ? ' (나)' : ''}</span><span class="ct">🍀 ${s.n}</span></li>`;
+  const rows = list.map(row);
+  if (!list.length) rows.push('<li class="empty"><span class="nm">아직 아무도 못 찾았어요. 첫 번째 행운아가 되어 봐요!</span></li>');
+  if (me && !list.some((s) => s.uid === net.uid)) rows.push(`<li class="me gap"><span class="rk">–</span><span class="nm">${esc(me.nick)} (나)</span><span class="ct">🍀 ${me.n}</span></li>`);
+  $('#board-list').innerHTML = rows.join('');
+}
+$('#left-pill').onclick = () => openBoard('today');
+$('#board-btn').onclick = () => openBoard('all');
+for (const b of document.querySelectorAll('.board-tab')) b.onclick = () => openBoard(b.dataset.tab);
 $('#board-close').onclick = () => { $('#board').hidden = true; };
 $('#board').addEventListener('click', (e) => { if (e.target.id === 'board') $('#board').hidden = true; });
 
@@ -335,7 +349,7 @@ loadRound();
   if (net.mode === 'local') {
     const m = $('#mode-note'); m.hidden = false; m.textContent = '로컬 테스트 모드 (Firebase 설정 전)';
   }
-  myRound = await net.myRound();
+  net.myStat().then((m) => { myStat = m; });
   net.watchSpots(onSpots);
   net.watchOnline((n) => { $('#online').textContent = `👀 ${n}명`; $('#online').title = '지금 들판에 있는 사람'; });
   setInterval(tick, 1000);
@@ -347,7 +361,8 @@ Object.assign(window, {
   testReveal: (on = true) => meadow.debugLucky(on),
   testGoto: (i = 0) => { const l = field.lucky[i]; if (l) meadow.lookAt(l.x, l.z, 0.7); return l; },
   testFake: (i = 0, who = '테스트') => net?._fake?.(i, who),
-  testReset: () => { net?._reset?.(); myRound = null; render(); },
+  testReset: () => { net?._reset?.(); myStat = null; render(); },
+  testCard: async (idx = 0, r = round) => { const c = await makeCard({ rank: idx + 1, total: N, nick: nick(), date: roundLabel(r), time: clockKST(Date.now()), tier: field.lucky[idx]?.tier || 'normal', round: r, idx }); $('#win-img').src = c.toDataURL('image/png'); $('#win').hidden = false; return c; },
   testInfo: () => meadow.info,
   testMeadow: meadow,
 });
