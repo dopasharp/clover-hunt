@@ -2,26 +2,16 @@
 import { paintLeaf } from './art.js';
 import { TIERS, starText, hash, rng } from './field.js';
 
-// 네잎마다 생김새가 달라요: 같은 라운드·같은 번호면 언제 다시 그려도 같은 모양 (그 네잎만의 얼굴)
+// 네잎마다 생김새가 조금씩 달라요 (같은 라운드·같은 번호면 늘 같은 모양). 티 나지 않게 자연스러운 초록 안에서만 바꿔요.
 const PALETTES = [
-  { name: '에메랄드', base: '#1f6a2a', mid: '#3fa042', edge: '#2f8a33', dot: '#4f7f2c' },
-  { name: '연둣빛',   base: '#4c9a1e', mid: '#8bd13c', edge: '#6dbb2c', dot: '#6f9a32' },
-  { name: '청록',     base: '#17695a', mid: '#36a580', edge: '#2a8a6a', dot: '#3e7a5c' },
-  { name: '깊은 숲',  base: '#1a4a1d', mid: '#2f7a2c', edge: '#28672a', dot: '#3c6a2a' },
-  { name: '햇살',     base: '#5d8f1a', mid: '#b0d64e', edge: '#8cbf35', dot: '#7a9a30' },
-  { name: '올리브',   base: '#46591a', mid: '#7f9c36', edge: '#6a862a', dot: '#5f7232' },
-  { name: '민트',     base: '#2c8658', mid: '#6ed39a', edge: '#4fb67e', dot: '#4a8a62' },
-  { name: '자줏빛',   base: '#3d4a22', mid: '#6f8a3a', edge: '#5d7531', dot: '#6a3a4a', chev: 2, blotch: 0 },
+  { base: '#2d7a27', mid: '#53b33d', edge: '#43a033', dot: '#5f8f3c' },   // 원래 색
+  { base: '#24702a', mid: '#46a840', edge: '#3a9436', dot: '#527f36' },
+  { base: '#357f22', mid: '#62bb3c', edge: '#4fa730', dot: '#66923a' },
+  { base: '#27703a', mid: '#4aad55', edge: '#3c9745', dot: '#558a42' },
+  { base: '#3a7d1f', mid: '#6cbd3e', edge: '#58a832', dot: '#6a9238' },
+  { base: '#2a6b26', mid: '#4a9f3a', edge: '#3d8c32', dot: '#567f34' },
 ];
-const CHEVRONS = [
-  { name: '은빛 V무늬',   c: 'rgba(232,248,220,.6)' },
-  { name: '연한 V무늬',   c: 'rgba(214,240,190,.32)' },
-  { name: '자줏빛 V무늬', c: 'rgba(110,30,70,.55)' },
-  { name: '붉은 V무늬',   c: 'rgba(168,42,42,.5)' },
-  { name: '금빛 V무늬',   c: 'rgba(246,216,110,.6)' },
-  { name: '민무늬',       c: 'rgba(0,0,0,0)' },
-];
-const BLOTCHES = ['rgba(105,25,60,.38)', 'rgba(255,255,225,.28)', 'rgba(20,50,15,.3)'];
+const CHEVRONS = ['rgba(214,240,190,.36)', 'rgba(225,245,210,.48)', 'rgba(214,240,190,.22)', 'rgba(0,0,0,0)'];
 
 /** (round, idx) → 이 네잎의 생김새 */
 export function cloverLook(round, idx) {
@@ -29,25 +19,21 @@ export function cloverLook(round, idx) {
   const R = rng(seed);
   const pick = (a) => a[Math.floor(R() * a.length)];
   const pal = pick(PALETTES);
-  const chev = pal.chev != null ? CHEVRONS[pal.chev] : pick(CHEVRONS);
-  const blotch = pal.blotch != null ? BLOTCHES[pal.blotch] : (R() < 0.28 ? pick(BLOTCHES) : null);
-  const w = 0.84 + R() * 0.34, notch = R(), round_ = R(), vchev = R();
+  const chev = pick(CHEVRONS);
+  const w = 0.88 + R() * 0.26, notch = R(), round_ = R(), vchev = R();
   const tilt = (R() * 2 - 1) * 0.7;
-  const small = R() < 0.45 ? Math.floor(R() * 4) : -1;        // 진짜 네잎은 넷째 잎이 작은 경우가 많아요
+  const small = R() < 0.45 ? Math.floor(R() * 4) : -1;        // 진짜 네잎은 한 잎이 조금 작은 경우가 많아요
   const leaves = Array.from({ length: 4 }, (_, k) => ({
     a: tilt + k * Math.PI / 2 + (R() * 2 - 1) * 0.16,
-    s: (k === small ? 0.74 + R() * 0.08 : 0.88 + R() * 0.2),
+    s: (k === small ? 0.76 + R() * 0.08 : 0.88 + R() * 0.2),
   }));
   const stem = { bend: (R() * 2 - 1) * 90, len: 280 + R() * 90 };
-  const shape = w > 1.06 ? '넓적한' : w < 0.94 ? '갸름한' : notch > 0.7 ? '깊은 하트' : notch < 0.3 ? '동글동글' : '하트';
-  const name = `${pal.name} · ${shape} 잎 · ${chev.name}${blotch ? ' · 반점' : ''}${small >= 0 ? ' · 막내 잎' : ''}`;
-  const code = seed.toString(16).toUpperCase().padStart(8, '0').slice(0, 6);
-  return { pal, chev, blotch, w, notch, round: round_, vchev, leaves, stem, name, code, seed };
+  return { pal, chev, w, notch, round: round_, vchev, leaves, stem, seed };
 }
 
 /** 네잎 하나 그리기 (카드 가운데, 미리보기 공용) */
 export function paintClover(x, look, cx, cy, L, { shadow = true } = {}) {
-  const { pal, chev, blotch, w, notch, round, vchev, leaves, stem } = look;
+  const { pal, chev, w, notch, round, vchev, leaves, stem } = look;
   // 줄기
   x.strokeStyle = '#6e9c48'; x.lineWidth = L * 0.06; x.lineCap = 'round';
   x.beginPath(); x.moveTo(cx + 4, cy + 12); x.quadraticCurveTo(cx + stem.bend, cy + stem.len * L / 230 * 0.6, cx - stem.bend * 0.2, cy + stem.len * L / 230); x.stroke();
@@ -56,7 +42,7 @@ export function paintClover(x, look, cx, cy, L, { shadow = true } = {}) {
   for (const lf of leaves) {
     paintLeaf(x, cx, cy, L * lf.s, lf.a, {
       shine: true, base: pal.base, mid: pal.mid, edge: pal.edge,
-      chevron: chev.c, chevW: 0.07 + vchev * 0.04, vchev, w, notch, round, blotch,
+      chevron: chev, chevW: 0.07 + vchev * 0.03, vchev, w, notch, round,
     });
   }
   x.restore();
@@ -97,9 +83,6 @@ export async function makeCard({ rank, total, nick, date, time, tier = 'normal',
   x.fillStyle = '#2b5a1f';
   x.font = '800 44px "Pretendard Variable", system-ui, sans-serif';
   x.fillText(`${date} 오늘의 네잎클로버`, W / 2, 130);
-  x.font = '600 28px "Pretendard Variable", system-ui, sans-serif';
-  x.fillStyle = 'rgba(31,71,22,.62)';
-  x.fillText(`${look.name}  #${look.code}`, W / 2, 178);
   x.font = '400 128px "Black Han Sans", "Pretendard Variable", sans-serif';
   x.fillStyle = '#1f4716';
   x.fillText(`${total}개 중 ${rank}번째`, W / 2, 1000);
@@ -115,7 +98,7 @@ export async function makeCard({ rank, total, nick, date, time, tier = 'normal',
 
   // 도장
   x.save();
-  x.translate(W - 165, 330); x.rotate(-0.22);
+  x.translate(W - 190, 250); x.rotate(-0.22);
   x.strokeStyle = 'rgba(214,60,90,.85)'; x.lineWidth = 8;
   x.beginPath(); x.arc(0, 0, 104, 0, Math.PI * 2); x.stroke();
   x.lineWidth = 3; x.beginPath(); x.arc(0, 0, 90, 0, Math.PI * 2); x.stroke();
