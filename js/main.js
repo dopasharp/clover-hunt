@@ -5,6 +5,7 @@ import { createMeadow } from './meadow.js';
 import { connect, explainError } from './net.js';
 import { makeCard, shareCard } from './card.js';
 import * as sound from './sound.js';
+import { randomNick } from './names.js';
 
 const $ = (s) => document.querySelector(s);
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -30,7 +31,18 @@ function cleanNick(s) {
   for (const w of BAD) t = t.split(w).join('♡'.repeat(Array.from(w).length));
   return t || '익명의 행운아';
 }
-try { $('#nick').value = localStorage.getItem('clover:nick') || ''; } catch {}
+// 처음 온 브라우저엔 랜덤 닉네임을 붙여 주고, 그 뒤로는 기억해 둔 이름 그대로
+const saveNick = (v) => { try { localStorage.setItem('clover:nick', v); } catch {} };
+let savedNick = '';
+try { savedNick = (localStorage.getItem('clover:nick') || '').trim(); } catch {}
+if (!savedNick) { savedNick = randomNick(); saveNick(savedNick); }
+$('#nick').value = savedNick;
+$('#nick-dice').onclick = () => {
+  const n = randomNick($('#nick').value.trim());
+  $('#nick').value = n; saveNick(n);
+  const b = $('#nick-dice'); b.classList.remove('roll'); void b.offsetWidth; b.classList.add('roll');
+};
+$('#nick').addEventListener('change', () => { const v = $('#nick').value.trim(); if (v) saveNick(v); });
 const nick = () => cleanNick($('#nick').value);
 
 // ---------------------------------------------------------------- 라운드
@@ -326,7 +338,8 @@ document.addEventListener('visibilitychange', () => { if (document.hidden) meado
 
 $('#start').onclick = () => {
   sound.unlock();
-  try { localStorage.setItem('clover:nick', $('#nick').value.trim()); } catch {}
+  if (!$('#nick').value.trim()) $('#nick').value = randomNick();
+  saveNick($('#nick').value.trim());
   $('#intro').hidden = true;
   started = true;
   dopa()?.track('game_start');

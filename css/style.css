@@ -73,6 +73,11 @@ button{font:inherit;color:inherit}
 .rules li span{flex:none;width:22px;text-align:center}
 .nick{display:flex;align-items:center;gap:10px;margin:0 0 12px;font-size:14px;font-weight:800;color:var(--muted)}
 .nick input{flex:1;min-width:0;height:48px;padding:0 14px;border-radius:12px;border:1.5px solid var(--line);background:#fff;font:600 16px var(--font-body);color:var(--ink)}
+.nick-dice{flex:none;width:48px;height:48px;border-radius:12px;border:1.5px solid var(--line);background:#fff;font-size:22px;line-height:1;cursor:pointer}
+.nick-dice:active{transform:scale(.94)}
+.nick-dice.roll{animation:dice .45s ease-out}
+@keyframes dice{0%{transform:rotate(0)}60%{transform:rotate(300deg) scale(1.1)}100%{transform:rotate(360deg)}}
+@media (prefers-reduced-motion:reduce){.nick-dice.roll{animation:none}}
 .nick input:focus{outline:3px solid rgba(63,154,47,.35);border-color:var(--leaf)}
 .intro .dopa-button--tertiary{margin-top:6px;color:var(--ink);text-decoration-color:var(--line)}
 .intro-note{margin:10px 0 0;font-size:13px;line-height:1.5;color:#b0304f;font-weight:600}

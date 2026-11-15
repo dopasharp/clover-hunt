@@ -22,9 +22,9 @@
   <link href="https://fonts.googleapis.com/css2?family=Black+Han+Sans&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="dopasharp/tokens.css">
   <link rel="stylesheet" href="dopasharp/components.css">
-  <link rel="stylesheet" href="css/style.css?v=3">
+  <link rel="stylesheet" href="css/style.css?v=4">
   <script src="dopasharp/dopasharp.js" defer></script>
-  <script type="module" src="js/main.js?v=3"></script>
+  <script type="module" src="js/main.js?v=4"></script>
 </head>
 <body>
   <canvas id="scene" aria-label="네잎클로버 들판 3D 화면"></canvas>
@@ -66,7 +66,7 @@
         <li><span>🏃</span>선착순 · 찾는 만큼 내 것 · 매일 낮 12시에 새 들판</li>
         <li><span>🎴</span>네잎마다 생김새가 달라요. 찾으면 세상에 하나뿐인 행운 카드를!</li>
       </ul>
-      <label class="nick">닉네임<input id="nick" maxlength="10" autocomplete="nickname" placeholder="익명의 행운아"></label>
+      <div class="nick"><label for="nick">닉네임</label><input id="nick" maxlength="10" autocomplete="off" placeholder="닉네임"><button id="nick-dice" class="nick-dice" type="button" aria-label="랜덤 닉네임 다시 뽑기" title="랜덤 닉네임">🎲</button></div>
       <button id="start" class="dopa-button dopa-button--block" type="button" disabled>불러오는 중…</button>
       <button id="board-btn" class="dopa-button dopa-button--tertiary" type="button">👑 역대 랭킹 보기</button>
       <p id="intro-note" class="intro-note" hidden></p>
